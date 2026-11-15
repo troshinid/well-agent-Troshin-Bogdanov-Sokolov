@@ -1,0 +1,19 @@
+{
+  "example_only": true,
+  "execution_mode": "ILLUSTRATIVE",
+  "case_id": "demo_base",
+  "config_id": "demo_config",
+  "calculation_status": "SUCCESS",
+  "assessment_status": "NOT_ASSESSED",
+  "answer": "Иллюстративный пример: расчёт завершён, абсолютное давление в узле demo_node_01 составляет 12 бар. Соответствие допуску не оценено: допуск не утверждён.",
+  "results": [
+    {
+      "object_id": "demo_node_01",
+      "quantity": "pressure",
+      "value": 12.0,
+      "unit": "bar",
+      "pressure_reference": "absolute"
+    }
+  ],
+  "trace_id": "example-trace-001"
+}
