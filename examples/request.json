@@ -1,0 +1,6 @@
+{
+  "example_only": true,
+  "request": "Рассчитай базовый стационарный сценарий demo_base и покажи давление в контрольном узле demo_node_01.",
+  "case_id": "demo_base",
+  "config_id": "demo_config"
+}
