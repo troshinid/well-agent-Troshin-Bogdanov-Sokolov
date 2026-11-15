@@ -1,0 +1,16 @@
+{
+  "example_only": true,
+  "execution_mode": "ILLUSTRATIVE",
+  "case_id": "demo_invalid",
+  "config_id": "demo_invalid_config",
+  "calculation_status": "NOT_RUN",
+  "assessment_status": "NOT_ASSESSED",
+  "answer": "Расчёт не запускался: для давления на выходе не указана единица измерения. Уточните единицу.",
+  "error": {
+    "code": "INVALID_UNITS",
+    "field": "boundary_conditions.outlet_pressure.unit",
+    "message": "Передано значение давления 12 без единицы измерения."
+  },
+  "results": [],
+  "trace_id": "example-trace-002"
+}
