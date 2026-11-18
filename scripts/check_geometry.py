@@ -1,35 +1,3 @@
-"""Проверка локальных pipe.json и profile.csv; PIPESIM не запускается."""
-
-import argparse
-import csv
-import hashlib
-import json
-import math
-from decimal import Decimal, InvalidOperation
-from pathlib import Path
-
-
-def number(value, field):
-    if value is None or isinstance(value, bool):
-        raise ValueError(f'{field}: нужно число')
-    try:
-        result = Decimal(str(value))
-    except InvalidOperation:
-        raise ValueError(f'{field}: неверное число {value!r}') from None
-    if not result.is_finite():
-        raise ValueError(f'{field}: число должно быть конечным')
-    return result
-
-
-def digest(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def check_geometry(pipe_path):
-    pipe = json.loads(pipe_path.read_text(encoding='utf-8-sig'))
-    if not isinstance(pipe, dict):
-        raise ValueError('pipe.json: ожидается объект JSON')
-    fields = ('outer_diameter_mm', 'wall_thickness_mm', 'inner_diameter_mm',
               'roughness_mm', 'reference_length_m')
     values = {key: number(pipe.get(key), key) for key in fields}
     for key, value in values.items():
@@ -61,7 +29,8 @@ def check_geometry(pipe_path):
     ids = set()
     coordinates = []
     reviews = {}
-    allowed_reviews = {'USER_CHECKED_ELEVATION', 'TRANSCRIBED_REVIEW_PENDING', 'TEAM_REVIEWED'}
+    checked_reviews = {'TEAM_REVIEWED', 'SOURCE_CHECKED', 'SOURCE_CHECKED_WITH_DECISION'}
+    allowed_reviews = checked_reviews | {'USER_CHECKED_ELEVATION', 'TRANSCRIBED_REVIEW_PENDING'}
     for line, row in enumerate(rows, start=2):
         prefix = f'CSV, строка {line}'
         if not row['point_id'] or row['point_id'] in ids:
@@ -116,7 +85,8 @@ def check_geometry(pipe_path):
         'min_pipe_bottom_m': str(min(point[2] for point in coordinates)),
         'max_pipe_bottom_m': str(max(point[2] for point in coordinates)),
         'reviews': reviews,
-        'review_complete': reviews.get('TEAM_REVIEWED', 0) == len(rows),
+        'review_complete': sum(reviews.get(status, 0) for status in checked_reviews) == len(rows),
+        'review_note': 'Завершение сверки определяется по записанным статусам; скрипт сам PDF не читает',
         'note': 'PASS проверяет структуру и арифметику, а не точность переноса с чертежа или готовность PIPESIM',
         'pipe_sha256': digest(pipe_path),
         'profile_sha256': digest(profile_path),
@@ -139,7 +109,7 @@ def main():
     print(f"Длина по оси ломаной: {report['axis_chord_length_m']:.4f} м")
     print(f"Перепад высот: {report['elevation_change_m']} м")
     print('Структура и арифметика: PASS')
-    print('Сверка всех строк завершена' if report['review_complete'] else 'Сверка всех строк с чертежом ещё не завершена')
+    print('По статусам строк сверка с источником завершена' if report['review_complete'] else 'Сверка всех строк с чертежом ещё не завершена')
     print(f'Отчёт: {output}')
 
 
