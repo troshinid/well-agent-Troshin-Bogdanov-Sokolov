@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "target_toolkit": "2021.1",
+  "model": "BlackOil",
+  "units": "PIPESIM_METRIC",
+  "basis": "initial_uncalibrated_educational_case",
+  "gas_ratio": "GOR",
+  "water_ratio": "WaterCut",
+  "dead_oil_viscosity": "User2Point",
+  "mixture_viscosity": "OilWaterVolumeRatio",
+  "water_specific_gravity": 1.0,
+  "correlations": {
+    "solution_gas": "Lasater",
+    "oil_fvf": "Standing",
+    "live_oil_viscosity": "ChewandConnaly",
+    "undersaturated_oil_viscosity": "VasquezAndBeggs",
+    "gas_viscosity": "Leeetal",
+    "gas_z": "Standing"
+  },
+  "calibration": {
+    "mode": "none",
+    "above_bp_property": "OFVF",
+    "below_bp_property": "OFVF"
+  },
+  "gas_contaminant_correction_mole_fractions": {
+    "CO2": 0.0,
+    "H2S": 0.0,
+    "N2": 0.0,
+    "H2": 0.0,
+    "CO": 0.0
+  },
+  "notes": [
+    "Choices reproduce the manual t1_analogue setup shown on 2026-11-20.",
+    "Zero contaminant correction inputs are a simplifying choice, not a measured gas composition.",
+    "Above-BP oil FVF is shown as Vasquez & Beggs in the GUI; this fixed method has no separate setter in the inspected API.",
+    "Reference-condition gas Z=1 used in scenario_rates.json does not set gas Z=1 along the pipe.",
+    "Correlation applicability and agreement with laboratory PVT data have not been validated."
+  ]
+}
