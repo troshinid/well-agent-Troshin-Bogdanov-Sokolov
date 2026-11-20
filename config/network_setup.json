@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "basis": "initial_educational_network",
+  "inlet_temperature_c": 20.0,
+  "outlet_pressure_bar_absolute": 10.0,
+  "profile_coordinates": "absolute_pipe_axis_elevation",
+  "profile_distance_input": "horizontal",
+  "flow_correlations": {
+    "source": "BJA",
+    "multiphase": "Beggs & Brill Revised",
+    "single_phase": "Moody",
+    "friction_multiplier": 1.0,
+    "holdup_multiplier": 1.0
+  },
+  "studies": {
+    "base": "base_stock_rates",
+    "plus10": "plus10_stock_rates"
+  },
+  "thermal": {
+    "target": "isothermal",
+    "target_temperature_c": 20.0,
+    "configuration_status": "pending"
+  },
+  "notes": [
+    "Source represents the selected wells 113 and 115, not the entire AGZU-6 production.",
+    "Stock-tank liquid rates are taken from scenario_rates.json.",
+    "Profile uses all reviewed points; horizontal and measured distances remain distinct.",
+    "A 20 C inlet temperature does not enforce a constant temperature along the pipe.",
+    "Hydraulic correlations are initial modeling choices, not calibrated field correlations."
+  ]
+}
