@@ -1,0 +1,4 @@
+# Separate Python 3.11+ venv. Do not install in PIPESIM Python 3.8.
+mcp==1.29.0
+pydantic==2.13.4
+jsonschema==4.26.0

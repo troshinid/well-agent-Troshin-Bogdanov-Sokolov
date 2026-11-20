@@ -1,7 +1,7 @@
 # Контракт первого MCP-инструмента
 
-Версия формата данных: 1. Это спецификация для реализации;
-MCP-сервер на этом шаге ещё не создан.
+Версия формата данных: 1. Реализация: `src/well_agent_mcp/`.
+Запуск и проверка: [mcp_setup.md](mcp_setup.md).
 
 ## Инструмент `read_results`
 
@@ -57,8 +57,8 @@ MCP-сервер на этом шаге ещё не создан.
 |---|---|
 | `schema_version` | Число `1`; версия формата проекта, не версия протокола MCP |
 | `trace_id` | UUID текущего вызова, созданный сервером |
-| `run_id` | UUID запрошенного расчёта |
-| `scenario` | `base`, `plus10` или `compare` |
+| `run_id` | UUID запрошенного расчёта; `null` при недопустимых аргументах |
+| `scenario` | `base`, `plus10` или `compare`; `null` при недопустимых аргументах |
 | `tool_status` | `SUCCESS` или `ERROR`: удалось ли выполнить чтение |
 | `execution_status` | `SUCCESS`, `PARTIAL`, `FAILED`, `NOT_RUN` или `UNKNOWN` |
 | `numerical_validation` | `OK`, `OUT_OF_TOLERANCE` или `NOT_ASSESSED` |
@@ -67,6 +67,8 @@ MCP-сервер на этом шаге ещё не создан.
 | `comparison` | Разность входных давлений или `null` |
 | `warnings` | Массив предупреждений с указанием сценария и этапа |
 | `report_ref` | Объект `{ "run_id": "UUID", "artifact": "report.json" }` или `null` |
+| `stock_tank_conditions` | Температура и абсолютное давление условий учёта объёмов или `null` |
+| `numerical_limits` | Численные допуски, сохранённые расчётным скриптом; пустой объект, если отчёт недоступен |
 | `error` | Объект ошибки или `null` |
 
 Каждый элемент `results.base` и `results.plus10` содержит:
@@ -81,10 +83,13 @@ MCP-сервер на этом шаге ещё не создан.
 | `liquid_rate_source` | Рассчитанный расход жидкости на входе |
 | `liquid_rate_sink` | Рассчитанный расход жидкости на выходе |
 | `profile` | `{ "points": число, "temperature_min": величина, "temperature_max": величина }` |
+| `repeatability` | `CONFIRMED`, `FAILED` или `NOT_ASSESSED` |
+| `checks` | Логические результаты проверок расчётного скрипта |
 
 Формат измеряемой величины: `object_id`, `value`, `unit`.
 `value` — конечное число либо `null`, если значение отсутствует.
 Нуль означает физический нуль и не используется для заполнения пропуска.
+Если число точек профиля отсутствует, `points` также равно `null`.
 
 Для давления дополнительно обязательно `reference: "absolute"`, единица — `bar`.
 Для температуры единица — `degC`.
@@ -141,23 +146,26 @@ MCP-сервер на этом шаге ещё не создан.
 | `INPUT_MISMATCH` | Не совпали контрольные суммы или проверка входных параметров |
 | `RESULT_INCOMPLETE` | Нет обязательных результатов запрошенного сценария |
 | `CALCULATION_FAILED` | В отчёте зафиксирован отказ расчёта |
+| `TRACE_WRITE_FAILED` | Не удалось записать журнал вызова |
 
 Отсутствие файла не доказывает, что расчёт не запускался:
 в таком случае `execution_status` равно `UNKNOWN`.
 `NOT_RUN` используется только при явном подтверждении отсутствия запуска.
 
-## Реализация следующего шага
+## Реализация
 
 Сервер предоставляет `read_results` с указанными `inputSchema` и
-`outputSchema`. Полная машинная схема ответа будет добавлена вместе
-с реализацией. Данные возвращаются в `structuredContent` и текстовом JSON.
+`outputSchema`. Машинные схемы определены в
+[`schemas.py`](../src/well_agent_mcp/schemas.py).
+Данные возвращаются в `structuredContent` и текстовом JSON.
 Ошибки инструмента отмечаются через `isError`; успешное чтение отчёта
 с предупреждениями само по себе не является ошибкой вызова.
 
 Для stdio журнал сервера направляется в stderr или файл.
 Вывод расчётного процесса перехватывается и не попадает в протокольный stdout.
 
-MCP запускается в отдельном современном Python; PIPESIM Toolkit остаётся
+MCP запускается в отдельном Python 3.11+ с закреплённым SDK 1.29.0;
+PIPESIM Toolkit остаётся
 в проверенном окружении Python 3.8. `read_results` не импортирует sixgill.
 На этом шаге ничего устанавливать в окружение Toolkit не требуется.
 Дальнейший `run_steady_state` подключается отдельно от чтения результатов;
@@ -166,5 +174,5 @@ MCP запускается в отдельном современном Python; 
 
 Официальные источники для реализации:
 
-- [Инструменты MCP](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/server/tools.mdx).
-- [Установка Python SDK](https://github.com/modelcontextprotocol/python-sdk/blob/main/docs/get-started/installation.md).
+- [Закреплённый MCP SDK 1.29.0](https://pypi.org/project/mcp/1.29.0/).
+- [Документация SDK 1.x](https://py.sdk.modelcontextprotocol.io/v1/).
