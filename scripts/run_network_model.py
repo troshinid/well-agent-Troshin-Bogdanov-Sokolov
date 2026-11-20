@@ -374,6 +374,10 @@ def main():
     parser.add_argument('--manual-inlet-psia', type=float, nargs=2, metavar=('BASE', 'PLUS10'),
                         help='Входные давления из ручной проверки; разности записываются без оценки точности')
     parser.add_argument('--apply', action='store_true', help='Создать копию и запустить расчёты')
+    parser.add_argument('--prepared-model', type=Path,
+                        help='Для MCP: копия уже подготовленной модели; входные параметры не назначаются')
+    parser.add_argument('--seed-report', type=Path,
+                        help='Успешный отчёт, подтверждающий --prepared-model')
     args = parser.parse_args()
     source_model, rates_path, folder = args.network_model.resolve(), args.rates.resolve(), args.output_dir.resolve()
     manifest_path = source_model.with_suffix('.json')
@@ -392,6 +396,20 @@ def main():
             raise ValueError('Этот шаг рассчитан на 20 °C и выходное давление 10 bara')
         temperature_k, outlet_pa = 293.15, 1e6
         source, line, sink = network_nodes(manifest['after_reopen']['connections'])
+        prepared = None
+        if bool(args.prepared_model) != bool(args.seed_report):
+            raise ValueError('--prepared-model и --seed-report указываются вместе')
+        if args.prepared_model:
+            prepared = args.prepared_model.resolve()
+            seed = read_json(args.seed_report.resolve())
+            if (prepared == source_model or seed.get('status') not in
+                    ['NUMERICAL_CHECKS_PASSED', 'NUMERICAL_CHECKS_PASSED_WITH_WARNINGS'] or
+                    seed.get('source_model_unchanged') is not True or
+                    seed.get('model_sha256') != sha(prepared) or
+                    seed.get('source_sha256') != sha(source_model) or
+                    seed.get('manifest_sha256') != sha(manifest_path) or
+                    seed.get('rates_sha256') != sha(rates_path)):
+                raise ValueError('Подготовленная модель не соответствует успешному отчёту')
         if folder.exists():
             raise ValueError('Выходная папка уже существует. Укажите новую папку для запуска')
         if args.manual_inlet_psia and any(finite(v) <= 0 for v in args.manual_inlet_psia):
@@ -412,15 +430,20 @@ def main():
               'manifest_sha256': sha(manifest_path), 'rates_sha256': sha(rates_path),
               'script_sha256': sha(Path(__file__)), 'numerical_limits': NUMERICAL_LIMITS,
               'physical_validation': 'NOT_ASSESSED', 'studies': {}}
+    if prepared is not None:
+        report['prepared_model_source'] = str(prepared)
+        report['prepared_model_sha256'] = sha(prepared)
+        report['seed_report_sha256'] = sha(args.seed_report.resolve())
+        report['input_configuration_mode'] = 'READ_ONLY_PREPARED_MODEL'
     model, code = None, 0
     handler = logging.FileHandler(str(folder / 'sdk.log'), encoding='utf-8')
     handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s'))
     root, previous_level = logging.getLogger(), logging.getLogger().level
     root.addHandler(handler);root.setLevel(logging.INFO)
     try:
-        with source_model.open('rb') as src, copy_path.open('xb') as dst:
+        with (prepared or source_model).open('rb') as src, copy_path.open('xb') as dst:
             shutil.copyfileobj(src, dst)
-        report['stage'] = 'configure_thermal'
+        report['stage'] = 'verify_prepared_inputs' if prepared is not None else 'configure_thermal'
         model = Model.open(str(copy_path), units=d.Units.SI)
         original = snapshot(model, manifest, source, line, sink, rates, d)
         geom = original['geometry']
@@ -428,12 +451,15 @@ def main():
         geometry = {'points': len(geom[g.ELEVATION]),
                     'axis_length_m': finite(geom[g.MEASUREDDISTANCE][-1]) - finite(geom[g.MEASUREDDISTANCE][0]),
                     'rise_m': finite(geom[g.ELEVATION][-1]) - finite(geom[g.ELEVATION][0])}
-        model.sim_settings.ambient_temperature = temperature_k
-        model.sim_settings.network_keywords_bottom = 'HEAT BALANCE=OFF'
+        if prepared is None:
+            model.sim_settings.ambient_temperature = temperature_k
+            model.sim_settings.network_keywords_bottom = 'HEAT BALANCE=OFF'
         # Preserve the known network configuration; do not insert other keywords.
         if str(model.sim_settings.single_branch_keywords or '').strip() or str(model.sim_settings.network_keywords_top or '').strip():
             raise ValueError('В исходной модели обнаружены дополнительные engine keywords')
-        model.save();model.close();model = None
+        if prepared is None:
+            model.save()
+        model.close();model = None
         report['stage'] = 'verify_thermal_after_reopen'
         model = Model.open(str(copy_path), units=d.Units.SI)
         report['ambient_temperature_api_k'] = finite(model.sim_settings.ambient_temperature)
@@ -522,6 +548,13 @@ def main():
         report['source_model_unchanged'] = sha(source_model) == report['source_sha256']
         if not report['source_model_unchanged']:
             report['status'] = 'CHECK_REQUIRED';report['source_hash_error'] = 'Исходная модель изменилась';code = 1
+        if prepared is not None:
+            try:
+                report['prepared_model_unchanged'] = sha(prepared) == report['prepared_model_sha256']
+            except OSError:
+                report['prepared_model_unchanged'] = False
+            if not report['prepared_model_unchanged']:
+                report['status'] = 'CHECK_REQUIRED';report['prepared_hash_error'] = 'Подготовленная модель изменилась';code = 1
         dump(report_path, report)
         root.removeHandler(handler);handler.close();root.setLevel(previous_level)
     print('Hydraulics: {}'.format(report['status']))

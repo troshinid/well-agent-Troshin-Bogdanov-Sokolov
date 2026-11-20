@@ -79,7 +79,9 @@ class WarningMessage(StrictModel):
 
 class Error(StrictModel):
     code: Literal['INVALID_ARGUMENT', 'RUN_NOT_FOUND', 'REPORT_NOT_FOUND', 'REPORT_INVALID',
-                  'INPUT_MISMATCH', 'RESULT_INCOMPLETE', 'CALCULATION_FAILED', 'TRACE_WRITE_FAILED']
+                  'INPUT_MISMATCH', 'RESULT_INCOMPLETE', 'CALCULATION_FAILED', 'TRACE_WRITE_FAILED',
+                  'RUNNER_NOT_CONFIGURED', 'TOOLKIT_UNAVAILABLE', 'WORKER_FAILED', 'LICENSE_UNAVAILABLE',
+                  'TIMEOUT', 'BUSY', 'REQUEST_CONFLICT']
     field: str | None
     message: str
 
@@ -114,3 +116,21 @@ class ReadResponse(StrictModel):
 
 INPUT_SCHEMA = ReadRequest.model_json_schema()
 OUTPUT_SCHEMA = ReadResponse.model_json_schema()
+
+
+class RunRequest(StrictModel):
+    seed_run_id: str = Field(pattern=UUID_PATTERN, description='UUID проверенного расчёта с подготовленной моделью')
+    request_id: str = Field(pattern=UUID_PATTERN, description='Ключ повтора: тот же UUID не запускает второй процесс')
+    scenario_set: Literal['base_plus10']
+
+
+class RunResponse(ReadResponse):
+    seed_run_id: str | None = Field(pattern=UUID_PATTERN)
+    request_id: str | None = Field(pattern=UUID_PATTERN)
+    job_state: Literal['NOT_STARTED', 'FINISHED', 'FAILED', 'OUTCOME_UNKNOWN']
+    worker_exit_code: int | None
+    reused: bool
+
+
+RUN_INPUT_SCHEMA = RunRequest.model_json_schema()
+RUN_OUTPUT_SCHEMA = RunResponse.model_json_schema()
