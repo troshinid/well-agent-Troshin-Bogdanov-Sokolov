@@ -77,7 +77,7 @@ class ResultsTests(unittest.TestCase):
         self.assertAlmostEqual(result['comparison']['inlet_pressure_plus10_minus_base']['value'], 0.001)
         self.assertAlmostEqual(result['stock_tank_conditions']['pressure']['value'], 1.013529322095696)
         trace = f.registry / 'traces' / (result['trace_id'] + '.json')
-        self.assertEqual(json.loads(trace.read_text())['result'], result)
+        self.assertEqual(json.loads(trace.read_text(encoding='utf-8'))['result'], result)
         self.assertEqual(f.register(), run_id)
 
     def test_single_scenario(self):
@@ -96,7 +96,7 @@ class ResultsTests(unittest.TestCase):
             self.assertEqual(result['error']['code'], 'INVALID_ARGUMENT')
             self.assertFalse(result['results'])
         for path in (f.registry / 'traces').glob('*.json'):
-            self.assertNotIn('DO_NOT_LOG_THIS', path.read_text())
+            self.assertNotIn('DO_NOT_LOG_THIS', path.read_text(encoding='utf-8'))
 
     def test_changed_files_are_rejected(self):
         f = self.fixture;run_id = f.register()
@@ -128,6 +128,27 @@ class ResultsTests(unittest.TestCase):
         self.assertEqual(result['error']['code'], 'RESULT_INCOMPLETE')
         self.assertIsNone(result['results']['base']['inlet_pressure']['value'])
         self.assertIsNone(result['comparison'])
+
+    def test_solver_failure_keeps_only_the_other_solved_scenario(self):
+        # Failed iterations can still export plausible pressure, mass and profile data.
+        f = self.fixture
+        for state_completed in (True, False):
+            with self.subTest(state_completed=state_completed):
+                stage = f.data['studies']['plus10']['runs']['restart']
+                stage['checks'].update(completed=state_completed, no_solver_errors=False)
+                stage['status'] = f.data['status'] = 'CHECK_REQUIRED'
+                run_id = f.register()
+                for scenario, expected_results, expected_status in (
+                        ('compare', {'base'}, 'PARTIAL'), ('plus10', set(), 'FAILED')):
+                    result = f.call(run_id, scenario)
+                    self.assertEqual(result['tool_status'], 'ERROR')
+                    self.assertEqual(result['error']['code'], 'CALCULATION_FAILED')
+                    self.assertEqual(result['execution_status'], expected_status)
+                    self.assertEqual(set(result['results']), expected_results)
+                    self.assertIsNone(result['comparison'])
+                    self.assertNotEqual(result['numerical_validation'], 'OK')
+                    trace = f.registry / 'traces' / (result['trace_id'] + '.json')
+                    self.assertEqual(json.loads(trace.read_text(encoding='utf-8'))['result'], result)
 
     def test_global_input_mismatch_is_not_pass(self):
         f = self.fixture;f.data['status'] = 'CHECK_REQUIRED'
@@ -168,7 +189,7 @@ class ResultsTests(unittest.TestCase):
     def test_nan_and_duplicate_json_keys_are_rejected(self):
         f = self.fixture
         for text in ['{"status": NaN}', '{"status": "ERROR", "status": "IN_PROGRESS"}']:
-            f.report.write_text(text)
+            f.report.write_text(text, encoding='utf-8')
             with self.assertRaises(ReportError) as caught:
                 Registry(f.registry).register(f.report, f.model, f.rates)
             self.assertEqual(caught.exception.payload.code, 'REPORT_INVALID')

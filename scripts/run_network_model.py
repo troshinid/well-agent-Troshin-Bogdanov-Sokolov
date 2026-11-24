@@ -20,6 +20,7 @@ from pathlib import Path
 
 from build_fluid_model import read_json, sha
 from build_network_model import blank, boundary_row, close_number, unit_conversion, units, value_si
+from mass_balance import criteria as mass_criteria, extract as extract_mass_balance, unavailable as mass_unavailable
 
 
 PSI_PA = 6894.757293168
@@ -173,7 +174,7 @@ def numeric_sequence(branch, name, profile_units, dimension):
 
 
 def assess(payload, source, sink, expected_rates, temperature_k, outlet_pa,
-           geometry, manual_psia=None):
+           geometry, manual_psia=None, mass_balance_criteria=None):
     out = {'checks': {}, 'warnings': [], 'numerical_limits': NUMERICAL_LIMITS,
            'physical_validation': 'NOT_ASSESSED'}
     checks = out['checks']
@@ -192,6 +193,17 @@ def assess(payload, source, sink, expected_rates, temperature_k, outlet_pa,
                 out['warnings'].append(message)
     out['property_errors'] = payload.get('property_errors', {})
     checks['result_properties_available'] = not out['property_errors']
+    mass_units = payload.get('profile_units')
+    out['mass_flow_input_unit'] = mass_units.get('MassFlowrate') if isinstance(mass_units, dict) else None
+    try:
+        out['mass_balance'] = extract_mass_balance(payload, mass_balance_criteria)
+        checks['mass_flow_available'] = True
+        if out['mass_balance']['assessment'] != 'NOT_ASSESSED':
+            checks['mass_balance_within_tolerance'] = out['mass_balance']['assessment'] == 'OK'
+    except (KeyError, TypeError, ValueError, OverflowError) as error:
+        out['mass_balance'] = mass_unavailable(mass_balance_criteria, 'MISSING_OR_INVALID_DATA', variable='MassFlowrate')
+        out['mass_balance_error'] = '{}: {}'.format(type(error).__name__, error)
+        checks['mass_flow_available'] = False
     try:
         nodes = payload['node']
         pin = variable_value(nodes, 'Pressure', source, 'pressure')
@@ -382,6 +394,8 @@ def main():
     source_model, rates_path, folder = args.network_model.resolve(), args.rates.resolve(), args.output_dir.resolve()
     manifest_path = source_model.with_suffix('.json')
     try:
+        mass_config_path = Path(__file__).resolve().parents[1] / 'config/mass_balance.json'
+        balance_criteria = mass_criteria(read_json(mass_config_path))
         manifest, rates = read_json(manifest_path), read_json(rates_path)
         if source_model.suffix.lower() != '.pips' or manifest.get('status') != 'NETWORK_STRUCTURE_VERIFIED':
             raise ValueError('Нужна модель с отчётом NETWORK_STRUCTURE_VERIFIED')
@@ -429,7 +443,9 @@ def main():
               'model_file': str(copy_path), 'source_sha256': sha(source_model),
               'manifest_sha256': sha(manifest_path), 'rates_sha256': sha(rates_path),
               'script_sha256': sha(Path(__file__)), 'numerical_limits': NUMERICAL_LIMITS,
-              'physical_validation': 'NOT_ASSESSED', 'studies': {}}
+              'physical_validation': 'NOT_ASSESSED', 'studies': {},
+              'result_features': ['total_mass_balance_v1'],
+              'mass_balance_criteria': balance_criteria, 'mass_balance_config_sha256': sha(mass_config_path)}
     if prepared is not None:
         report['prepared_model_source'] = str(prepared)
         report['prepared_model_sha256'] = sha(prepared)
@@ -476,7 +492,7 @@ def main():
                             sv.VOLUME_FLOWRATE_GAS_STOCKTANK, sv.FRICTION_DELTA_PRESSURE,
                             sv.ELEVATION_DELTA_PRESSURE]
         profile_variables = [pv.PRESSURE, pv.TEMPERATURE, pv.TEMPERATURE_FLUID, pv.TOTAL_DISTANCE,
-                             pv.ELEVATION, pv.HOLDUP_FRACTION_LIQUID,
+                             pv.ELEVATION, pv.HOLDUP_FRACTION_LIQUID, pv.MASS_FLOWRATE,
                              pv.CUMULATIVE_FRICTION_PRESSURE_DIFFERENCE,
                              pv.CUMULATIVE_ELEVATION_PRESSURE_DIFFERENCE,
                              pv.CUMULATIVE_ACCELERATION_PRESSURE_DIFFERENCE]
@@ -510,7 +526,8 @@ def main():
                 (run_folder / 'engine_console.txt').write_text('\n'.join(str(m) for m in messages) + '\n', encoding='utf-8')
                 export_csv(run_folder, payload)
                 assessment = assess(payload, source, sink, rates[rate_key], temperature_k, outlet_pa,
-                                    geometry, None if args.manual_inlet_psia is None else args.manual_inlet_psia[index])
+                                    geometry, None if args.manual_inlet_psia is None else args.manual_inlet_psia[index],
+                                    balance_criteria)
                 item['runs'][label] = assessment
                 dump(report_path, report)
                 print('{}: {} -> {}'.format(study, label, assessment['status']), flush=True)

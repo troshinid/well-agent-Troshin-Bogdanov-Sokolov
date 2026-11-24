@@ -23,6 +23,7 @@ from src.well_agent_mcp.runner import REPOSITORY
 from src.well_agent_mcp.schemas import RUN_OUTPUT_SCHEMA
 from src.well_agent_mcp.server import create_server
 from src.well_agent_mcp.__main__ import check_run_server
+from scripts.mass_balance import calculate as calculate_mass
 
 
 class FakeProcess:
@@ -49,6 +50,14 @@ class FakeExecutor:
         calculation = folder / 'calculation';calculation.mkdir()
         model = calculation / 'isothermal_auto.pips';model.write_bytes(b'synthetic result model')
         report = copy.deepcopy(f.data)
+        criterion = json.loads((REPOSITORY / 'config/mass_balance.json').read_text())
+        report['result_features'] = ['total_mass_balance_v1']
+        report['mass_balance_criteria'] = criterion
+        report['mass_balance_config_sha256'] = checksum((REPOSITORY / 'config/mass_balance.json').read_bytes())
+        for study in report['studies'].values():
+            for stage in study['runs'].values():
+                stage['mass_balance'] = calculate_mass(0.65, 0.650000001, criterion)
+                stage['checks']['mass_flow_available'] = True
         report.update(model_file=str(model), model_sha256=checksum(model.read_bytes()),
                       input_configuration_mode='READ_ONLY_PREPARED_MODEL', prepared_model_unchanged=True,
                       prepared_model_sha256=f.data['model_sha256'], seed_report_sha256=checksum(f.report.read_bytes()),

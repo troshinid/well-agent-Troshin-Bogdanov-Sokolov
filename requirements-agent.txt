@@ -1,0 +1,4 @@
+# Install in .venv-mcp, never in PIPESIM Python 3.8.
+-r requirements-mcp.txt
+httpx==0.28.1
+python-dotenv==1.2.2
