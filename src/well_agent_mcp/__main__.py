@@ -139,6 +139,8 @@ def main():
         register.add_argument('--' + arg, required=True, type=Path)
     serve = sub.add_parser('serve', help='MCP stdio; stdout предназначен только для протокола')
     serve.add_argument('--registry', required=True, type=Path)
+    serve.add_argument('--build-data', type=Path, help='Включить подготовку копии из локального комплекта АГЗУ-6')
+    serve.add_argument('--toolkit-root', type=Path, default=Path(r'C:\Program Files\Schlumberger\PIPESIM_PTK_2021.1'))
     check = sub.add_parser('check', help='Запустить сервер и проверить его через настоящий MCP-клиент')
     check.add_argument('--registry', required=True, type=Path)
     check.add_argument('--run-id', required=True)
@@ -170,7 +172,11 @@ def main():
             print('seed_run_id: ' + args.seed_run_id)
         elif args.command == 'serve':
             from .server import serve as run_server
-            anyio.run(run_server, args.registry.resolve())
+            preparation = None
+            if args.build_data is not None:
+                from .model_preparation import Preparation
+                preparation = Preparation(args.registry, args.build_data, args.toolkit_root)
+            anyio.run(run_server, args.registry.resolve(), preparation)
         elif args.command == 'check':
             if args.output.exists():
                 parser.error('Выходной файл существует. Укажите новое имя для --output')
