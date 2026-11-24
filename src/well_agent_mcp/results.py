@@ -9,10 +9,11 @@ from pathlib import Path
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from pydantic import ValidationError
+from scripts.mass_balance import calculate as calculate_mass, criteria as mass_criteria, unavailable as mass_unavailable
 
 from .schemas import (
     Comparison, Difference, Error, LiquidRate, Pressure, Profile, ReadRequest,
-    ReadResponse, ReportRef, ScenarioResult, StockConditions, Temperature, WarningMessage,
+    ReadResponse, ReportRef, ScenarioResult, StockConditions, Temperature, WarningMessage, MassBalance,
 )
 
 SOURCE, SINK, ROUTE = 'agzu6_out', 'tiein_agzu4_agzu1', 'agzu6_to_tiein'
@@ -188,7 +189,34 @@ class Registry:
             raise ReportError('REPORT_INVALID', 'registry', 'Повреждена запись реестра') from error
 
 
-def _scenario(study, name, repeat_limit):
+def _mass_balance(raw, required, criterion):
+    value = raw.get('mass_balance')
+    if value is None:
+        if required:
+            raise ReportError('REPORT_INVALID', 'mass_balance', 'Отчёт нового формата не содержит массового баланса')
+        return MassBalance.model_validate(mass_unavailable())
+    try:
+        observed = MassBalance.model_validate(value).model_dump()
+        selected = mass_criteria(observed['criteria'])
+        if required and selected != criterion:
+            raise ValueError('Different mass balance criteria within one report')
+        source, sink = observed['source']['value'], observed['sink']['value']
+        if source is None or sink is None:
+            if raw.get('checks', {}).get('mass_flow_available') is not False:
+                raise ValueError('Missing mass values contradict availability check')
+            expected = mass_unavailable(selected, 'MISSING_OR_INVALID_DATA', variable=observed['source_variable'])
+        else:
+            if raw.get('checks', {}).get('mass_flow_available') is not True:
+                raise ValueError('Mass values contradict availability check')
+            expected = calculate_mass(source, sink, selected, variable=observed['source_variable'])
+        if observed != expected:
+            raise ValueError('Mass residual, criteria or assessment is inconsistent')
+        return MassBalance.model_validate(expected)
+    except (ValueError, KeyError, TypeError, OverflowError):
+        raise ReportError('REPORT_INVALID', 'mass_balance', 'Массовый баланс не прошёл независимый пересчёт MCP') from None
+
+
+def _scenario(study, name, repeat_limit, mass_required=False, criterion=None):
     """Return available values even when the scenario is incomplete."""
     runs = study.get('runs', {})
     if not isinstance(runs, dict):
@@ -200,6 +228,7 @@ def _scenario(study, name, repeat_limit):
     if stage is None:
         return None, [], False
     raw = runs[stage]
+    balance = _mass_balance(raw, mass_required, criterion)
     checks = raw.get('checks', {})
     if not isinstance(checks, dict) or any(type(v) is not bool for v in checks.values()):
         raise ReportError('REPORT_INVALID', name + '.checks', 'Проверки должны содержать логические значения')
@@ -208,6 +237,10 @@ def _scenario(study, name, repeat_limit):
         other = runs.get(label, {})
         if not isinstance(other, dict):
             raise ReportError('REPORT_INVALID', name + '.runs', 'Неизвестный формат этапа')
+        if other:
+            other_balance = _mass_balance(other, mass_required, criterion)
+            if other.get('status') in PASS and other_balance.assessment == 'OUT_OF_TOLERANCE':
+                raise ReportError('REPORT_INVALID', name + '.mass_balance', 'Статус PASS противоречит массовому балансу')
         messages = other.get('warnings', [])
         if not isinstance(messages, list) or any(not isinstance(m, str) for m in messages):
             raise ReportError('REPORT_INVALID', name + '.warnings', 'Неизвестный формат предупреждений')
@@ -229,8 +262,13 @@ def _scenario(study, name, repeat_limit):
     if complete and vals[4] > vals[5]:
         raise ReportError('REPORT_INVALID', name + '.profile', 'Минимальная температура больше максимальной')
     # These labels only describe checks already performed by the hydraulic runner.
+    # A missing mass export is not a measured tolerance violation. Keep true
+    # failures of numerical criteria distinct from this availability failure.
+    numerical_failure = any(value is False for key, value in checks.items() if key != 'mass_flow_available')
     numerical = ('OK' if raw.get('status') in PASS and complete else
-                 'OUT_OF_TOLERANCE' if any(v is False for v in checks.values()) else 'NOT_ASSESSED')
+                 'OUT_OF_TOLERANCE' if numerical_failure else 'NOT_ASSESSED')
+    if balance.assessment == 'OUT_OF_TOLERANCE':
+        numerical = 'OUT_OF_TOLERANCE'
     repetition = study.get('repeatability', {})
     repeatability = 'FAILED' if repetition.get('matches') is False else 'NOT_ASSESSED'
     if repetition.get('matches') is True and {'run', 'restart'} <= set(completed) and complete:
@@ -243,6 +281,9 @@ def _scenario(study, name, repeat_limit):
         repeatability = 'CONFIRMED'
     if repeatability == 'FAILED':
         numerical = 'OUT_OF_TOLERANCE'
+    mass_error = raw.get('mass_balance_error')
+    if mass_error is not None and not isinstance(mass_error, str):
+        raise ReportError('REPORT_INVALID', name + '.mass_balance_error', 'Неизвестный формат ошибки массового экспорта')
     result = ScenarioResult(
         result_origin=stage, execution_status='SUCCESS' if checks.get('completed') is True else 'FAILED',
         numerical_validation=numerical,
@@ -252,7 +293,8 @@ def _scenario(study, name, repeat_limit):
         liquid_rate_sink=LiquidRate(object_id=SINK, value=vals[3]),
         profile=Profile(points=points, temperature_min=Temperature(object_id=ROUTE, value=vals[4]),
                         temperature_max=Temperature(object_id=ROUTE, value=vals[5])),
-        repeatability=repeatability, checks=checks)
+        repeatability=repeatability, checks=checks, mass_balance=balance,
+        mass_balance_error=mass_error[:512] if mass_error is not None else None)
     return result, warnings, complete
 
 
@@ -265,13 +307,36 @@ def project(report, rates, request, response):
             'run_restart_pressure_pa'} <= limits.keys() or any(number(v) is None or v < 0 for v in limits.values())):
         raise ReportError('REPORT_INVALID', 'numerical_limits', 'Некорректные численные допуски отчёта')
     response.numerical_limits = {k: float(v) for k, v in limits.items()}
+    features = report.get('result_features', [])
+    if not isinstance(features, list) or any(not isinstance(value, str) for value in features):
+        raise ReportError('REPORT_INVALID', 'result_features', 'Некорректный список возможностей отчёта')
+    mass_required = 'total_mass_balance_v1' in features
+    try:
+        criterion = mass_criteria(report['mass_balance_criteria']) if mass_required else None
+    except (ValueError, KeyError, TypeError):
+        raise ReportError('REPORT_INVALID', 'mass_balance_criteria', 'Некорректная конфигурация массового баланса') from None
     complete = []
+    failed_stages = []
     for name in requested:
         study = report['studies'].get(name, {})
         if not isinstance(study, dict):
             raise ReportError('REPORT_INVALID', name, 'Неизвестный формат сценария')
-        value, warnings, readable = _scenario(study, name, limits['run_restart_pressure_pa'])
+        value, warnings, readable = _scenario(study, name, limits['run_restart_pressure_pa'], mass_required, criterion)
         response.warnings.extend(warnings)
+        # A prior good Run must not hide a failed Restart for this scenario.
+        failed = []
+        for stage, record in study.get('runs', {}).items():
+            if stage not in ('run', 'restart') or not isinstance(record, dict):
+                continue
+            checks = record.get('checks', {})
+            if checks.get('completed') is False:
+                failed.append(name + '/' + stage + ': расчёт не завершён')
+            elif checks.get('summary_available') is True and checks.get('no_solver_errors') is False:
+                failed.append(name + '/' + stage + ': решатель сообщил об ошибке')
+        if failed:
+            failed_stages.extend(failed)
+            complete.append(False)
+            continue
         if value is not None:
             response.results[name] = value
         complete.append(readable)
@@ -287,6 +352,10 @@ def project(report, rates, request, response):
         for scenario in response.results.values():
             scenario.numerical_validation = 'NOT_ASSESSED'
         raise ReportError('INPUT_MISMATCH', 'report.input_mismatch', 'Отчёт содержит ошибку проверки входных параметров')
+    if failed_stages:
+        response.execution_status = 'PARTIAL' if any(completed) else 'FAILED'
+        response.numerical_validation = 'NOT_ASSESSED'
+        raise ReportError('CALCULATION_FAILED', 'studies', '; '.join(failed_stages))
     if report['status'] not in PASS:
         if response.numerical_validation == 'OK':
             response.numerical_validation = 'NOT_ASSESSED'

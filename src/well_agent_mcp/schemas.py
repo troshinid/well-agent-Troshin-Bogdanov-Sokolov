@@ -3,6 +3,7 @@
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat
+from scripts.mass_balance import unavailable as mass_unavailable
 
 
 UUID_PATTERN = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
@@ -47,6 +48,32 @@ class Profile(StrictModel):
     temperature_max: Temperature
 
 
+class MassRate(Quantity):
+    value: FiniteFloat | None = Field(ge=0)
+    unit: Literal['kg/s']
+
+
+class MassCriteria(StrictModel):
+    absolute_tolerance_kg_s: FiniteFloat | None = Field(ge=0)
+    relative_tolerance: FiniteFloat | None = Field(ge=0)
+    approval_reference: str | None
+
+
+class MassBalance(StrictModel):
+    source: MassRate
+    sink: MassRate
+    source_variable: Literal['MassFlowrateFluid', 'MassFlowrate'] = 'MassFlowrateFluid'
+    flow_convention: Literal['positive_in_network_direction'] = 'positive_in_network_direction'
+    signed_residual_kg_s: FiniteFloat | None
+    absolute_residual_kg_s: FiniteFloat | None = Field(ge=0)
+    relative_residual_percent: FiniteFloat | None = Field(ge=0)
+    allowed_residual_kg_s: FiniteFloat | None = Field(ge=0)
+    criteria: MassCriteria
+    assessment: Validation
+    reason: Literal['NOT_EXPORTED', 'MISSING_OR_INVALID_DATA', 'NO_APPROVED_TOLERANCE',
+                    'ZERO_REFERENCE_REQUIRES_ABSOLUTE_TOLERANCE', 'WITHIN_TOLERANCE', 'OUTSIDE_TOLERANCE']
+
+
 class ScenarioResult(StrictModel):
     result_origin: Literal['run', 'restart']
     execution_status: Execution
@@ -58,6 +85,8 @@ class ScenarioResult(StrictModel):
     profile: Profile
     repeatability: Literal['CONFIRMED', 'FAILED', 'NOT_ASSESSED']
     checks: dict[str, bool]
+    mass_balance: MassBalance = Field(default_factory=lambda: MassBalance.model_validate(mass_unavailable()))
+    mass_balance_error: str | None = Field(default=None, max_length=512)
 
 
 class Difference(StrictModel):

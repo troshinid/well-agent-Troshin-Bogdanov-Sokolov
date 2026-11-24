@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+.venv*/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.pips
+*.rst
+*.tnt
+/data/
+/models/
+/runs/
+/mcp_registry/
+/mcp_runs/

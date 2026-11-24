@@ -22,7 +22,8 @@ from .schemas import Error, ReadRequest, RunRequest, RunResponse
 REPOSITORY = Path(__file__).resolve().parents[2]
 CODE_FILES = ['scripts/pipesim_worker.cmd', 'scripts/run_network_model.py', 'scripts/build_network_model.py',
               'scripts/build_fluid_model.py', 'scripts/check_fluid.py', 'scripts/check_geometry.py',
-              'scripts/create_fluid_draft.py', 'scripts/convert_reference_rates.py']
+              'scripts/create_fluid_draft.py', 'scripts/convert_reference_rates.py',
+              'scripts/mass_balance.py', 'config/mass_balance.json']
 
 
 def license_failure(folder):
@@ -83,7 +84,7 @@ def load_profile(registry, seed_run_id):
         raise ReportError('INPUT_MISMATCH', 'seed_run_id', 'В профиле разрешён другой исходный расчёт')
     try:
         for name in CODE_FILES:
-            if file_hash(REPOSITORY / name, name) != profile['code_hashes'][name]:
+            if file_hash(REPOSITORY / name, name) != profile['code_hashes'].get(name):
                 raise ReportError('INPUT_MISMATCH', 'runner.code', 'Код изменён после настройки профиля: ' + name)
         safe_command_path(profile['toolkit_root']);safe_command_path(profile['output_root'])
         safe_command_path(profile['prepared_model'])
@@ -217,6 +218,10 @@ class RunSteadyState:
                         candidate.get('prepared_model_unchanged') is not True or
                         candidate.get('prepared_model_sha256') != profile['prepared_sha256'] or
                         candidate.get('seed_report_sha256') != entry['files']['report']['sha256'] or
+                        'total_mass_balance_v1' not in candidate.get('result_features', []) or
+                        candidate.get('mass_balance_config_sha256') != profile['code_hashes']['config/mass_balance.json'] or
+                        candidate.get('mass_balance_criteria') != parse_json(
+                            read_bytes(REPOSITORY / 'config/mass_balance.json', 'mass_balance_criteria'), 'mass_balance_criteria') or
                         candidate.get('script_sha256') != profile['code_hashes']['scripts/run_network_model.py']):
                     raise ReportError('INPUT_MISMATCH', 'worker.inputs', 'Отчёт не подтверждает запуск согласованной подготовленной модели')
                 for name in CODE_FILES:

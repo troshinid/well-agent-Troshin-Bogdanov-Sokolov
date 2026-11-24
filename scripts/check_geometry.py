@@ -1,3 +1,35 @@
+"""Проверка локальных pipe.json и profile.csv; PIPESIM не запускается."""
+
+import argparse
+import csv
+import hashlib
+import json
+import math
+from decimal import Decimal, InvalidOperation
+from pathlib import Path
+
+
+def number(value, field):
+    if value is None or isinstance(value, bool):
+        raise ValueError(f'{field}: нужно число')
+    try:
+        result = Decimal(str(value))
+    except InvalidOperation:
+        raise ValueError(f'{field}: неверное число {value!r}') from None
+    if not result.is_finite():
+        raise ValueError(f'{field}: число должно быть конечным')
+    return result
+
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def check_geometry(pipe_path):
+    pipe = json.loads(pipe_path.read_text(encoding='utf-8-sig'))
+    if not isinstance(pipe, dict):
+        raise ValueError('pipe.json: ожидается объект JSON')
+    fields = ('outer_diameter_mm', 'wall_thickness_mm', 'inner_diameter_mm',
               'roughness_mm', 'reference_length_m')
     values = {key: number(pipe.get(key), key) for key in fields}
     for key, value in values.items():
