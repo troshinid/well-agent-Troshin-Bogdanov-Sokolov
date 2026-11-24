@@ -59,6 +59,10 @@ def main():
     parser = argparse.ArgumentParser(description='well-agent: текстовый запрос -> RouterAI -> MCP -> PIPESIM')
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('configure-llm', help='Скрытый ввод ключа и запись нового локального .env')
+    build = sub.add_parser('prepare-model', help='Показать план сборки сети и запросить подтверждение через MCP')
+    build.add_argument('--data', type=Path, default=Path.home() / 'Desktop' / 'well-agent-data')
+    build.add_argument('--toolkit-root', type=Path, default=Path(r'C:\Program Files\Schlumberger\PIPESIM_PTK_2021.1'))
+    build.add_argument('--plan-only', action='store_true')
     ask = sub.add_parser('ask', help='Чтение по умолчанию; --allow-run разрешает повтор согласованной пары')
     ask.add_argument('--registry', required=True, type=Path)
     ask.add_argument('--run-id', required=True)
@@ -68,6 +72,9 @@ def main():
     ask.add_argument('--output', required=True, type=Path, help='Новый JSON; существующий файл не перезаписывается')
     args = parser.parse_args()
     try:
+        if args.command == 'prepare-model':
+            from src.well_agent_mcp.prepare_cli import prepare_model
+            return anyio.run(prepare_model, args.data.resolve(), args.toolkit_root.resolve(), args.plan_only)
         if args.command == 'configure-llm':
             configure()
             return 0
