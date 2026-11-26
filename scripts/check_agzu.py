@@ -5,6 +5,7 @@ import hashlib
 import json
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from zipfile import BadZipFile
 
 from openpyxl import load_workbook
 
@@ -49,6 +50,16 @@ def audit(path):
         if "Sheet1" not in book.sheetnames:
             raise ValueError("Нет листа Sheet1: структура исходника изменилась")
         sheet = book["Sheet1"]
+        # В исходном шаблоне C содержит долю. Заголовок с другой единицей
+        # требует уточнения даже при числовом значении между 0 и 1.
+        for row in (2, 10, 20, 29):
+            cell = sheet[f"C{row}"]
+            heading = str(cell.value or "").strip().casefold().replace("ё", "е")
+            if heading not in {"обводненность", "обводненность, доля", "обводненность (доля)"}:
+                raise ValueError(
+                    f"Sheet1!C{row}: заголовок {cell.value!r}. "
+                    "Уточните поле и единицу обводнённости: ожидается доля от 0 до 1."
+                )
         wells = []
         for row, expected_id, group in LAYOUT:
             well_id = str(sheet[f"A{row}"].value).strip()
@@ -145,6 +156,8 @@ def main():
         parser.error(f"Не найден файл .xlsx: {source}")
     try:
         report = audit(source)
+    except BadZipFile:
+        parser.error(f"Не удалось прочитать книгу {source.name}: повреждён или неверен формат XLSX")
     except (ValueError, OSError) as error:
         parser.error(str(error))
 
