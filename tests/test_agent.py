@@ -14,9 +14,9 @@ from uuid import uuid4
 import httpx
 from src.agent.loop import run_agent
 from src.agent.routerai import AgentError, RouterAIPlanner, DEFAULT_MODEL
-from src.agent.schemas import AgentContext, Task
+from src.agent.schemas import AgentContext, AgentResult, Task
 from src.well_agent_mcp.results import ReadResults
-from src.well_agent_mcp.schemas import RunResponse
+from src.well_agent_mcp.schemas import ReadRequest, ReadResponse, RunResponse
 from test_mcp_read_results import Fixture
 
 KEY = 'sk-routerai-test-' + '0' * 64  # Synthetic, never a usable credential.
@@ -71,6 +71,24 @@ class FakeGateway:
         yield self
 
 
+class ContractExampleTests(unittest.TestCase):
+    def test_published_examples_match_contract(self):
+        examples = Path(__file__).resolve().parents[1] / 'examples'
+        request = json.loads((examples / 'request.json').read_text(encoding='utf-8'))
+        context = AgentContext.model_validate(request['ctx'])
+        success = AgentResult.model_validate_json((examples / 'result.json').read_text(encoding='utf-8'))
+        self.assertEqual((success.status, success.request_id), ('SUCCESS', context.request_id))
+        self.assertEqual([event['tool'] for event in success.evidence], ['read_results'])
+        event = success.evidence[0]
+        self.assertEqual(ReadRequest.model_validate(event['arguments']).run_id, context.run_id)
+        self.assertEqual(ReadResponse.model_validate(event['payload']).run_id, context.run_id)
+
+        refusal = AgentResult.model_validate_json((examples / 'error.json').read_text(encoding='utf-8'))
+        self.assertEqual((refusal.status, refusal.execution_status), ('REFUSED', 'NOT_RUN'))
+        self.assertEqual(refusal.error['code'], 'AMBIGUOUS')
+        self.assertEqual(refusal.evidence, [])
+
+
 class AgentTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -92,6 +110,8 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.status, 'SUCCESS')
         self.assertEqual([c[0] for c in self.gateway.calls], ['read_results'])
         self.assertIn('12 bara', result.answer)
+        self.assertIn('15.5555555556 °C, 1.0135293221 бара абсолютного давления', result.answer)
+        self.assertIn('Исходные объёмы заданы при 20 °C и 101325 Па', result.answer)
         self.assertIn('Synthetic warning', result.answer)
         self.assertIn('NOT_ASSESSED', result.answer)
         sent = mock.requests[0]

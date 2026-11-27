@@ -44,8 +44,16 @@ def number(value, cell):
     return result
 
 
+def open_agzu_workbook(path, *, data_only):
+    try:
+        return load_workbook(path, read_only=True, data_only=data_only)
+    except KeyError as error:
+        # openpyxl looks up required XLSX parts by name inside the ZIP.
+        raise ValueError(f"Не удалось прочитать книгу {path.name}: повреждён или неверен формат XLSX") from error
+
+
 def audit(path):
-    book = load_workbook(path, read_only=True, data_only=False)
+    book = open_agzu_workbook(path, data_only=False)
     try:
         if "Sheet1" not in book.sheetnames:
             raise ValueError("Нет листа Sheet1: структура исходника изменилась")
@@ -96,7 +104,7 @@ def audit(path):
     finally:
         book.close()
 
-    cached = load_workbook(path, read_only=True, data_only=True)
+    cached = open_agzu_workbook(path, data_only=True)
     try:
         source_water_cut = number(cached["Sheet1"]["C36"].value, "C36")
     finally:

@@ -1,19 +1,271 @@
 {
-  "example_only": true,
-  "execution_mode": "ILLUSTRATIVE",
-  "case_id": "demo_base",
-  "config_id": "demo_config",
-  "calculation_status": "SUCCESS",
-  "assessment_status": "NOT_ASSESSED",
-  "answer": "Иллюстративный пример: расчёт завершён, абсолютное давление в узле demo_node_01 составляет 12 бар. Соответствие допуску не оценено: допуск не утверждён.",
-  "results": [
+  "schema_version": 1,
+  "answer": "Чтение сохранённых результатов через MCP; новый расчёт не запускался.\nrun_id: afe662ed-400d-552d-8c00-ab586620672c\nbase: P входа = 12 bara; P выхода = 10 bara; расход жидкости = 10.001 sm3/day; источник = restart.\nbase: массовые расходы не получены; оценка массового баланса: NOT_ASSESSED.\nplus10: P входа = 12.001 bara; P выхода = 10 bara; расход жидкости = 10.001 sm3/day; источник = restart.\nplus10: массовые расходы не получены; оценка массового баланса: NOT_ASSESSED.\nРасход жидкости в sm3/day приведён к условиям PIPESIM (stock tank): 15.5555555556 °C, 1.0135293221 бара абсолютного давления.\nРазница P входа (plus10 − base) = 0.000999999999999 bar (99.9999999999 Pa). Это сравнение двух стационарных режимов.\nЧисленные проверки: OK.\nПредупреждение [base/run]: Synthetic warning on first run\nПредупреждение [plus10/run]: Synthetic warning on first run\nСоответствие промысловым измерениям не оценивалось (NOT_ASSESSED).\nОграничения данных по участку АГЗУ-6:\nВ предоставленных материалах нет сопоставимых замеров давления на обоих концах линии и полного расхода за один устойчивый режим.\nРасход задан по скважинам 113 и 115. По скважинам 114 и 116 данных о расходах нет. Полный фактический приток неизвестен.\nВ учебных сценариях давление на врезке задано равным 10 барам абсолютного давления, температура на входе — 20 °C. Исходные объёмы заданы при 20 °C и 101325 Па абсолютного давления.\nФлюид задан по аналогу Т1, его соответствие скважинам 113 и 115 не подтверждено. Вода принята пресной; дополнительные местные сопротивления не учтены.",
+  "status": "SUCCESS",
+  "request_id": "c87de4f3-9a89-4676-a7f3-747b30b063a8",
+  "trace_id": "3575d43f-d507-41ae-9755-cd2fd1965c42",
+  "task": {
+    "action": "read_results",
+    "scenario": "compare",
+    "reason": "SUPPORTED"
+  },
+  "execution_status": "SUCCESS",
+  "numerical_validation": "OK",
+  "physical_validation": "NOT_ASSESSED",
+  "evidence": [
     {
-      "object_id": "demo_node_01",
-      "quantity": "pressure",
-      "value": 12.0,
-      "unit": "bar",
-      "pressure_reference": "absolute"
+      "tool": "read_results",
+      "arguments": {
+        "run_id": "afe662ed-400d-552d-8c00-ab586620672c",
+        "scenario": "compare"
+      },
+      "payload": {
+        "schema_version": 1,
+        "trace_id": "568cb5ff-40e5-4ec7-b620-70f13da9b276",
+        "run_id": "afe662ed-400d-552d-8c00-ab586620672c",
+        "scenario": "compare",
+        "tool_status": "SUCCESS",
+        "execution_status": "SUCCESS",
+        "numerical_validation": "OK",
+        "physical_validation": "NOT_ASSESSED",
+        "results": {
+          "base": {
+            "result_origin": "restart",
+            "execution_status": "SUCCESS",
+            "numerical_validation": "OK",
+            "inlet_pressure": {
+              "object_id": "agzu6_out",
+              "value": 12.0,
+              "unit": "bar",
+              "reference": "absolute"
+            },
+            "outlet_pressure": {
+              "object_id": "tiein_agzu4_agzu1",
+              "value": 10.0,
+              "unit": "bar",
+              "reference": "absolute"
+            },
+            "liquid_rate_source": {
+              "object_id": "agzu6_out",
+              "value": 10.001,
+              "unit": "sm3/day",
+              "conditions_ref": "scenario_rates.stock_tank_conditions"
+            },
+            "liquid_rate_sink": {
+              "object_id": "tiein_agzu4_agzu1",
+              "value": 10.001,
+              "unit": "sm3/day",
+              "conditions_ref": "scenario_rates.stock_tank_conditions"
+            },
+            "profile": {
+              "points": 53,
+              "temperature_min": {
+                "object_id": "agzu6_to_tiein",
+                "value": 20.0,
+                "unit": "degC"
+              },
+              "temperature_max": {
+                "object_id": "agzu6_to_tiein",
+                "value": 20.0,
+                "unit": "degC"
+              }
+            },
+            "repeatability": "CONFIRMED",
+            "checks": {
+              "liquid_rate": true,
+              "water_rate": true,
+              "liquid_balance": true,
+              "no_solver_errors": true,
+              "isothermal_profile": true,
+              "positive_profile_pressures": true,
+              "gas_rate": true,
+              "summary_available": true,
+              "gas_balance": true,
+              "node_temperatures": true,
+              "profile_point_count": true,
+              "oil_rate": true,
+              "completed": true,
+              "messages_available": true,
+              "positive_absolute_pressures": true,
+              "water_balance": true,
+              "profile_columns_aligned": true,
+              "oil_balance": true,
+              "profile_rise": true,
+              "outlet_pressure": true,
+              "result_properties_available": true,
+              "profile_distance_monotonic": true,
+              "profile_end_pressures": true,
+              "profile_length": true
+            },
+            "mass_balance": {
+              "source": {
+                "object_id": "agzu6_out",
+                "value": null,
+                "unit": "kg/s"
+              },
+              "sink": {
+                "object_id": "tiein_agzu4_agzu1",
+                "value": null,
+                "unit": "kg/s"
+              },
+              "source_variable": "MassFlowrateFluid",
+              "flow_convention": "positive_in_network_direction",
+              "signed_residual_kg_s": null,
+              "absolute_residual_kg_s": null,
+              "relative_residual_percent": null,
+              "allowed_residual_kg_s": null,
+              "criteria": {
+                "absolute_tolerance_kg_s": null,
+                "relative_tolerance": null,
+                "approval_reference": null
+              },
+              "assessment": "NOT_ASSESSED",
+              "reason": "NOT_EXPORTED"
+            },
+            "mass_balance_error": null
+          },
+          "plus10": {
+            "result_origin": "restart",
+            "execution_status": "SUCCESS",
+            "numerical_validation": "OK",
+            "inlet_pressure": {
+              "object_id": "agzu6_out",
+              "value": 12.001,
+              "unit": "bar",
+              "reference": "absolute"
+            },
+            "outlet_pressure": {
+              "object_id": "tiein_agzu4_agzu1",
+              "value": 10.0,
+              "unit": "bar",
+              "reference": "absolute"
+            },
+            "liquid_rate_source": {
+              "object_id": "agzu6_out",
+              "value": 10.001,
+              "unit": "sm3/day",
+              "conditions_ref": "scenario_rates.stock_tank_conditions"
+            },
+            "liquid_rate_sink": {
+              "object_id": "tiein_agzu4_agzu1",
+              "value": 10.001,
+              "unit": "sm3/day",
+              "conditions_ref": "scenario_rates.stock_tank_conditions"
+            },
+            "profile": {
+              "points": 53,
+              "temperature_min": {
+                "object_id": "agzu6_to_tiein",
+                "value": 20.0,
+                "unit": "degC"
+              },
+              "temperature_max": {
+                "object_id": "agzu6_to_tiein",
+                "value": 20.0,
+                "unit": "degC"
+              }
+            },
+            "repeatability": "CONFIRMED",
+            "checks": {
+              "liquid_rate": true,
+              "water_rate": true,
+              "liquid_balance": true,
+              "no_solver_errors": true,
+              "isothermal_profile": true,
+              "positive_profile_pressures": true,
+              "gas_rate": true,
+              "summary_available": true,
+              "gas_balance": true,
+              "node_temperatures": true,
+              "profile_point_count": true,
+              "oil_rate": true,
+              "completed": true,
+              "messages_available": true,
+              "positive_absolute_pressures": true,
+              "water_balance": true,
+              "profile_columns_aligned": true,
+              "oil_balance": true,
+              "profile_rise": true,
+              "outlet_pressure": true,
+              "result_properties_available": true,
+              "profile_distance_monotonic": true,
+              "profile_end_pressures": true,
+              "profile_length": true
+            },
+            "mass_balance": {
+              "source": {
+                "object_id": "agzu6_out",
+                "value": null,
+                "unit": "kg/s"
+              },
+              "sink": {
+                "object_id": "tiein_agzu4_agzu1",
+                "value": null,
+                "unit": "kg/s"
+              },
+              "source_variable": "MassFlowrateFluid",
+              "flow_convention": "positive_in_network_direction",
+              "signed_residual_kg_s": null,
+              "absolute_residual_kg_s": null,
+              "relative_residual_percent": null,
+              "allowed_residual_kg_s": null,
+              "criteria": {
+                "absolute_tolerance_kg_s": null,
+                "relative_tolerance": null,
+                "approval_reference": null
+              },
+              "assessment": "NOT_ASSESSED",
+              "reason": "NOT_EXPORTED"
+            },
+            "mass_balance_error": null
+          }
+        },
+        "comparison": {
+          "inlet_pressure_plus10_minus_base": {
+            "value": 0.0009999999999994458,
+            "unit": "bar",
+            "base_object_id": "agzu6_out",
+            "plus10_object_id": "agzu6_out"
+          }
+        },
+        "warnings": [
+          {
+            "scenario": "base",
+            "stage": "run",
+            "message": "Synthetic warning on first run"
+          },
+          {
+            "scenario": "plus10",
+            "stage": "run",
+            "message": "Synthetic warning on first run"
+          }
+        ],
+        "report_ref": {
+          "run_id": "afe662ed-400d-552d-8c00-ab586620672c",
+          "artifact": "report.json"
+        },
+        "stock_tank_conditions": {
+          "temperature": {
+            "object_id": "stock_tank",
+            "value": 15.5555555556,
+            "unit": "degC"
+          },
+          "pressure": {
+            "object_id": "stock_tank",
+            "value": 1.013529322095696,
+            "unit": "bar",
+            "reference": "absolute"
+          }
+        },
+        "numerical_limits": {
+          "outlet_pressure_pa": 100.0,
+          "temperature_k": 0.001,
+          "rate_relative": 0.0001,
+          "run_restart_pressure_pa": 1.0
+        },
+        "error": null
+      }
     }
   ],
-  "trace_id": "example-trace-001"
+  "error": null
 }
