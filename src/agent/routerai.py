@@ -7,7 +7,6 @@ from .prompts import SYSTEM_PROMPT
 from .schemas import Task
 
 BASE_URL = 'https://routerai.ru/api/v1'
-ENDPOINT = BASE_URL + '/chat/completions'
 DEFAULT_MODEL = 'deepseek/deepseek-v4.1-flash-1017'
 
 
@@ -31,24 +30,38 @@ def strict_json(text):
 
 
 class RouterAIPlanner:
-    def __init__(self, api_key, model=DEFAULT_MODEL, transport=None):
+    def __init__(self, api_key, model=DEFAULT_MODEL, transport=None, *, base_url=BASE_URL):
+        self.base_url = base_url.rstrip("/")
+        try:
+            url = httpx.URL(self.base_url)
+        except httpx.InvalidURL:
+            raise AgentError("LLM_NOT_CONFIGURED", "Некорректный адрес LLM.") from None
+        self.loopback = url.host in {"127.0.0.1", "::1", "localhost"}
+        if (not url.host or url.userinfo or url.query or url.fragment
+                or not (url.scheme == "https" or (self.loopback and url.scheme == "http"))):
+            raise AgentError("LLM_NOT_CONFIGURED", "Проверь адрес LLM и протокол.")
+        if api_key is None and self.loopback:
+            api_key = 'local-probe-no-credential'
         if not isinstance(api_key, str) or not re.fullmatch(r'[A-Za-z0-9_.:-]+', api_key):
             raise AgentError('LLM_NOT_CONFIGURED', 'Не задан ROUTERAI_API_KEY.')
         if not isinstance(model, str) or not re.fullmatch(r'[A-Za-z0-9_.:-]+/[A-Za-z0-9_.:/-]+', model):
             raise AgentError('LLM_NOT_CONFIGURED', 'Задай ROUTERAI_MODEL: точный ID модели в RouterAI.')
         self.api_key, self.model, self.transport = api_key, model, transport
 
-    async def plan(self, request):
-        if self.api_key in request or re.search(r'sk-or-v1-[A-Za-z0-9_-]{16,}', request):
-            raise AgentError('SENSITIVE_INPUT', 'Запрос содержит API-ключ; он не отправлен и не записан.')
-        body = {'model': self.model, 'stream': False, 'max_tokens': 1024,
+    def request_body(self, request):
+        return {'model': self.model, 'stream': False, 'max_tokens': 1024,
                 'messages': [{'role': 'system', 'content': SYSTEM_PROMPT}, {'role': 'user', 'content': request}],
                 'response_format': {'type': 'json_schema', 'json_schema': {
                     'name': 'pipesim_task', 'strict': True, 'schema': Task.model_json_schema()}}}
+
+    async def plan(self, request):
+        if self.api_key in request or re.search(r'sk-or-v1-[A-Za-z0-9_-]{16,}', request):
+            raise AgentError('SENSITIVE_INPUT', 'Запрос содержит API-ключ; он не отправлен и не записан.')
+        body = self.request_body(request)
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(60, connect=15),
-                    follow_redirects=False, transport=self.transport) as client:
-                async with client.stream('POST', ENDPOINT,
+                    follow_redirects=False, trust_env=not self.loopback, transport=self.transport) as client:
+                async with client.stream('POST', self.base_url + '/chat/completions',
                         headers={'Authorization': 'Bearer ' + self.api_key}, json=body) as response:
                     if response.status_code != 200:
                         code, message = {

@@ -12,7 +12,7 @@ import anyio
 from dotenv import load_dotenv
 from pydantic import ValidationError
 from src.agent.loop import run_agent
-from src.agent.routerai import AgentError, RouterAIPlanner, DEFAULT_MODEL
+from src.agent.routerai import AgentError, RouterAIPlanner, BASE_URL, DEFAULT_MODEL
 from src.agent.schemas import AgentContext, AgentResult
 
 ROOT = Path(__file__).resolve().parent
@@ -23,7 +23,13 @@ def run(request, ctx) -> AgentResult:
     context = AgentContext.model_validate(ctx)
     load_dotenv(ROOT / '.env', override=False)
     try:
-        planner = RouterAIPlanner(os.environ.get('ROUTERAI_API_KEY'), os.environ.get('ROUTERAI_MODEL', DEFAULT_MODEL))
+        base_url = context.llm_base_url or os.environ.get('LLM_BASE_URL') or BASE_URL
+        model = context.llm_model or os.environ.get('ROUTERAI_MODEL', DEFAULT_MODEL)
+        # A RouterAI credential belongs only to its original endpoint.
+        key = context.llm_api_key.get_secret_value() if context.llm_api_key else None
+        if key is None and base_url.rstrip('/') == BASE_URL:
+            key = os.environ.get('ROUTERAI_API_KEY')
+        planner = RouterAIPlanner(key, model, base_url=base_url)
     except AgentError as error:
         result = AgentResult(request_id=context.request_id, trace_id=str(uuid4()),
             answer=error.message, error={'code': error.code, 'message': error.message})
