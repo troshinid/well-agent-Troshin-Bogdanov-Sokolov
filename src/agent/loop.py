@@ -7,15 +7,17 @@ from uuid import uuid4
 from pydantic import ValidationError
 from src.well_agent_mcp.results import write_json, utc_now
 from .mcp_client import connect
-from .routerai import AgentError, strict_json
+from .routerai import AgentError, BASE_URL, strict_json
 from .prompts import PROMPT_VERSION
 from .report import REASONS, build_answer
 from .schemas import AgentContext, AgentResult, Task
 
 
-def fingerprint(request, ctx, model):
+def fingerprint(request, ctx, model, base_url=BASE_URL):
     data = {'request': request, 'run_id': ctx.run_id, 'registry': str(ctx.registry.resolve()),
             'allow_run': ctx.allow_run, 'model': model, 'prompt_version': PROMPT_VERSION}
+    if base_url != BASE_URL:
+        data["llm_base_url"] = base_url
     return hashlib.sha256(json.dumps(data, ensure_ascii=False, sort_keys=True).encode('utf-8')).hexdigest()
 
 
@@ -33,7 +35,7 @@ async def run_agent(request, ctx, planner, connection=connect):
         if (key and key in request) or re.search(r'sk-or-v1-[A-Za-z0-9_-]{16,}', request):
             raise AgentError('SENSITIVE_INPUT', 'Запрос содержит API-ключ; он не отправлен и не записан.')
         journal['request'] = request
-        expected = fingerprint(request, ctx, planner.model)
+        expected = fingerprint(request, ctx, planner.model, getattr(planner, 'base_url', BASE_URL))
         if state_path.exists():
             try:
                 state = strict_json(state_path.read_text(encoding='utf-8'))
@@ -45,6 +47,9 @@ async def run_agent(request, ctx, planner, connection=connect):
                 raise AgentError('CHECKPOINT_INVALID', 'Повреждена запись запроса. Новый расчёт не запускался.') from None
             journal['plan_reused'] = True
         else:
+            if hasattr(planner, 'request_body'):
+                journal['llm_request'] = {
+                    'base_url': planner.base_url, 'body': planner.request_body(request)}
             task, metadata = await planner.plan(request)
             task = Task.model_validate(task)
             state = {'schema_version': 1, 'fingerprint': expected, 'task': task.model_dump(), 'llm': metadata}
