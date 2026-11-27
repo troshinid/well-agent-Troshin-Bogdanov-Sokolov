@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from zipfile import ZipFile
 
 from openpyxl import Workbook
 
@@ -63,6 +64,16 @@ class AgzuInputTests(unittest.TestCase):
 
     def test_unreadable_xlsx(self):
         self.source.write_bytes(b'not an xlsx workbook')
+        self.check_refusal('Не удалось прочитать книгу agzu.xlsx')
+
+    def test_xlsx_missing_content_types(self):
+        self.workbook()
+        damaged = self.source.with_name('damaged.xlsx')
+        with ZipFile(self.source) as valid, ZipFile(damaged, 'w') as incomplete:
+            for entry in valid.infolist():
+                if entry.filename != '[Content_Types].xml':
+                    incomplete.writestr(entry, valid.read(entry))
+        damaged.replace(self.source)
         self.check_refusal('Не удалось прочитать книгу agzu.xlsx')
 
     def test_valid_stored_fraction_with_excel_percent_format(self):

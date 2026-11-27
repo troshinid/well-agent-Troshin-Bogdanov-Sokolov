@@ -1,16 +1,20 @@
 {
-  "example_only": true,
-  "execution_mode": "ILLUSTRATIVE",
-  "case_id": "demo_invalid",
-  "config_id": "demo_invalid_config",
-  "calculation_status": "NOT_RUN",
-  "assessment_status": "NOT_ASSESSED",
-  "answer": "Расчёт не запускался: для давления на выходе не указана единица измерения. Уточните единицу.",
-  "error": {
-    "code": "INVALID_UNITS",
-    "field": "boundary_conditions.outlet_pressure.unit",
-    "message": "Передано значение давления 12 без единицы измерения."
+  "schema_version": 1,
+  "answer": "Уточни объект, операцию и единицы. Зависимый расчёт не запускался.",
+  "status": "REFUSED",
+  "request_id": "157b56c6-489a-4fd8-9c86-29463a466208",
+  "trace_id": "9f99e755-a10c-4140-a6ec-c4bd93def619",
+  "task": {
+    "action": "refuse",
+    "scenario": "compare",
+    "reason": "AMBIGUOUS"
   },
-  "results": [],
-  "trace_id": "example-trace-002"
+  "execution_status": "NOT_RUN",
+  "numerical_validation": "NOT_ASSESSED",
+  "physical_validation": "NOT_ASSESSED",
+  "evidence": [],
+  "error": {
+    "code": "AMBIGUOUS",
+    "message": "Уточни объект, операцию и единицы. Зависимый расчёт не запускался."
+  }
 }

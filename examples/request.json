@@ -1,6 +1,8 @@
 {
-  "example_only": true,
-  "request": "Рассчитай базовый стационарный сценарий demo_base и покажи давление в контрольном узле demo_node_01.",
-  "case_id": "demo_base",
-  "config_id": "demo_config"
+  "request": "Сравни сохранённые результаты base и plus10 для АГЗУ-6.",
+  "ctx": {
+    "registry": "./example-registry",
+    "run_id": "afe662ed-400d-552d-8c00-ab586620672c",
+    "request_id": "c87de4f3-9a89-4676-a7f3-747b30b063a8"
+  }
 }

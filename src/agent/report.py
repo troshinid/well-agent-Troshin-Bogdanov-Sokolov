@@ -53,6 +53,11 @@ def build_answer(evidence, action):
             lines.append(name + ': массовые расходы не получены; оценка массового баланса: NOT_ASSESSED.')
             if result.get('mass_balance_error'):
                 lines.append(name + ': ошибка экспорта массовых расходов: ' + result['mass_balance_error'])
+    stock = payload['stock_tank_conditions']
+    if payload['results'] and stock:
+        lines.append('Расход жидкости в sm3/day приведён к условиям PIPESIM (stock tank): '
+                     + quantity(stock['temperature']['value']) + ' °C, '
+                     + quantity(stock['pressure']['value']) + ' бара абсолютного давления.')
     if payload['comparison']:
         delta = payload['comparison']['inlet_pressure_plus10_minus_base']['value']
         lines.append('Разница P входа (plus10 − base) = ' + quantity(delta) + ' bar ('
@@ -73,8 +78,8 @@ def build_answer(evidence, action):
             'и полного расхода за один устойчивый режим.',
             'Расход задан по скважинам 113 и 115. По скважинам 114 и 116 данных о расходах нет. '
             'Полный фактический приток неизвестен.',
-            'Давление на врезке 10 бар абсолютных, температура 20 °C и условия учёта объёмов '
-            '(20 °C, 101325 Па абсолютных) приняты для учебных сценариев.',
+            'В учебных сценариях давление на врезке задано равным 10 барам абсолютного давления, '
+            'температура на входе — 20 °C. Исходные объёмы заданы при 20 °C и 101325 Па абсолютного давления.',
             'Флюид задан по аналогу Т1, его соответствие скважинам 113 и 115 не подтверждено. '
             'Вода принята пресной; дополнительные местные сопротивления не учтены.',
         ])
