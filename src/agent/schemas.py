@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 from src.well_agent_mcp.schemas import UUID_PATTERN, Execution, Validation
 
 
@@ -25,6 +25,9 @@ class Task(BaseModel):
 class AgentContext(BaseModel):
     model_config = ConfigDict(extra='forbid')
     registry: Path
+    llm_base_url: str | None = None
+    llm_model: str | None = None
+    llm_api_key: SecretStr | None = Field(default=None, exclude=True, repr=False)
     run_id: str = Field(pattern=UUID_PATTERN, strict=True)
     request_id: str = Field(default_factory=lambda: str(uuid4()), pattern=UUID_PATTERN, strict=True)
     allow_run: bool = Field(default=False, strict=True)
